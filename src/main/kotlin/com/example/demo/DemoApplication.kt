@@ -2,9 +2,11 @@ package com.example.demo
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.stereotype.Service
+import org.springframework.web.bind.annotation.*
+import org.springframework.jdbc.core.query
+import java.util.*
 
 @SpringBootApplication
 class DemoApplication
@@ -12,24 +14,61 @@ class DemoApplication
 data class Message(val id: String?, val text: String)
 
 
+// to implement the database access login within service layer, use @Service annotation
+@Service
+class MessageService(val db: JdbcTemplate) {
+    fun findMessages(): List<Message> = db.query("select * from messages") { response, _ ->
+        Message(response.getString("id"), response.getString("text"))
+    }
+
+    fun findMessageById(id: String): List<Message> =
+        db.query("select * from messages where id = ?", id) { response, _ ->
+            Message(response.getString("id"), response.getString("text"))
+        }
+
+    fun save(message: Message) {
+        val id = message.id ?: UUID.randomUUID().toString()
+        db.update(
+            "insert into messages values (? , ?)", id, message.text
+        )
+
+    }
+}
+
+
 // Tell Spring that MessageController is a REST controller,
 @RestController
-class MessageController {
+class MessageController(val service: MessageService) {
     // Mark the function below that implement the endpoints corresponding to HTTP GET calls
-    @GetMapping("/")
-    // @RequestParam: Indicates that method parameter(name) should be bound to the web request parameter
-    // http://localhost:8080/?name=<your-name>
-    fun index(@RequestParam name: String) = "Hello $name"
+//    @GetMapping("/")
+//    // @RequestParam: Indicates that method parameter(name) should be bound to the web request parameter
+//    // http://localhost:8080/?name=<your-name>
+//    fun index(@RequestParam name: String) = "Hello $name"
 
-    @GetMapping("/data")
-    fun data() = listOf(
-        Message("1", "Hello"),
-        Message("2", "World"),
-        Message("3", "Kotlin!"),
-    )
+    //    @GetMapping("/data")
+//    fun data() = listOf(
+//        Message("1", "Hello"),
+//        Message("2", "World"),
+//        Message("3", "Kotlin!"),
+//    )
+    @GetMapping("/")
+    fun index(): List<Message> = service.findMessages()
+
+    @GetMapping("/{id}")
+    fun index(@PathVariable id: String): List<Message> =
+        service.findMessageById(id)
+
+    // A method for handling HTTP POST requests needs to be annotated with @PostMapping
+    // @RequestBody: Convert to Json sent as HTTP BODY content into an object.
+    @PostMapping("/")
+    fun post(@RequestBody message: Message) {
+        service.save(message)
+    }
 }
 
 
 fun main(args: Array<String>) {
     runApplication<DemoApplication>(*args)
+
+
 }
